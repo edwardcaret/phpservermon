@@ -38,6 +38,12 @@ class Database
     protected $db_host;
 
     /**
+     * DB type
+     * @var string $db_type
+     */
+    protected $db_type;
+
+    /**
      * DB port
      * @var string|integer $db_port
      */
@@ -85,15 +91,17 @@ class Database
      * Constructor
      *
      * @param string $host
+     * @param string $type
      * @param string $user
      * @param string $pass
      * @param string $db
      * @param string|integer $port
      */
-    public function __construct($host = null, $user = null, $pass = null, $db = null, $port = '')
+    public function __construct($host = null, $type = null, $user = null, $pass = null, $db = null, $port = '')
     {
-        if ($host != null && $user != null && $pass !== null && $db != null) {
+        if ($host != null && $type != null && $user != null && $pass !== null && $db != null) {
             $this->db_host = $host;
+            $this->db_type = $type;
             $this->db_port = $port;
             $this->db_name = $db;
             $this->db_user = $user;
@@ -112,7 +120,7 @@ class Database
      */
     public function query($query, $fetch = true)
     {
-        $query = $this->convertQueryToPgsql( $query );
+        $query = $this->fixQueryForDbType( $query );
 
         // Execute query and process results
         try {
@@ -151,7 +159,7 @@ class Database
      */
     public function exec($query)
     {
-        $query = $this->convertQueryToPgsql( $query );
+        $query = $this->fixQueryForDbType( $query );
 
         try {
             $this->last = $this->pdo()->exec($query);
@@ -172,7 +180,7 @@ class Database
      */
     public function execute($query, $parameters, $fetch = true)
     {
-        $query = $this->convertQueryToPgsql( $query );
+        $query = $this->fixQueryForDbType( $query );
 
         try {
             $this->last = $this->pdo()->prepare($query);
@@ -221,11 +229,7 @@ class Database
         }
 
         // From
-        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
-            $query_parts[] = sprintf('FROM "%s"', $table);
-        } else {
-            $query_parts[] = "FROM `{$table}`";
-        }
+        $query_parts[] = "FROM `{$table}`";
 
         // Where clause
         $query_parts[] = $this->buildSQLClauseWhere($table, $where);
@@ -289,35 +293,35 @@ class Database
     public function save($table, array $data, $where = null)
     {
         if ($where === null) {
-                // insert mode
-                $query = "INSERT INTO ";
-                $exec = false;
-                $query .= "`{$table}` ";
-                $fields = array_keys($data);
-                $query .= "(".implode(',', $fields).") VALUES ";
-                $fieldVals = [];
-                foreach($data as $field => $value) {
-                    if(is_null($value)) {
-                        $value = 'NULL';
-                    } else {
-                        $value = $this->quote($value);
-                    }
-                    array_push($fieldVals, $value);
+            // insert mode
+            $query = "INSERT INTO ";
+            $exec = false;
+            $query .= "`{$table}` ";
+            $fields = array_keys($data);
+            $query .= "(".implode(',', $fields).") VALUES ";
+            $fieldVals = [];
+            foreach($data as $field => $value) {
+                if(is_null($value)) {
+                    $value = 'NULL';
+                } else {
+                    $value = $this->quote($value);
                 }
-                $query .= "(". implode(',',$fieldVals) .")";
+                array_push($fieldVals, $value);
+            }
+            $query .= "(". implode(',',$fieldVals) .")";
         } else {
-                $query = "UPDATE ";
-                $exec = true;
-                $query .= "`{$table}` SET ";
-                foreach($data as $field => $value) {
-                    if(is_null($value)) {
-                        $value = 'NULL';
-                    } else {
-                        $value = $this->quote($value);
-                    }
-                    $query .= "`{$field}`={$value}, ";
+            $query = "UPDATE ";
+            $exec = true;
+            $query .= "`{$table}` SET ";
+            foreach($data as $field => $value) {
+                if(is_null($value)) {
+                    $value = 'NULL';
+                } else {
+                    $value = $this->quote($value);
                 }
-                $query = substr($query, 0, -2) . ' ' . $this->buildSQLClauseWhere($table, $where);
+                $query .= "`{$field}`={$value}, ";
+            }
+            $query = substr($query, 0, -2) . ' ' . $this->buildSQLClauseWhere($table, $where);
         }
 
         if ($exec) {
@@ -507,11 +511,7 @@ class Database
                 $query .= " ORDER BY ";
 
                 foreach ($order_by as $field) {
-                    if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
-                        $query .= sprintf('"%s", ', $field);
-                    } else {
-                        $query .= "`{$field}`, ";
-                    }
+                    $query .= "`{$field}`, ";
                 }
                 // remove trailing ", "
                 $query = substr($query, 0, -2);
@@ -543,6 +543,15 @@ class Database
     public function getDbHost()
     {
         return $this->db_host;
+    }
+
+    /**
+     * Get the database type of the current connection
+     * @return string
+     */
+    public function getDbType()
+    {
+        return $this->db_type;
     }
 
     /**
@@ -581,24 +590,15 @@ class Database
     {
         // Initizale connection
         try {
-            if (!defined('PSM_DB_TYPE') || (PSM_DB_TYPE == 'mysql')) {
                 $this->pdo = new \PDO(
-                    'mysql:host=' . $this->db_host .
+                    $this->db_type .
+                        ':host=' . $this->db_host .
                         ';port=' . $this->db_port .
                         ';dbname=' . $this->db_name .
-                        ';charset=utf8',
+                        ($this->db_type === 'mysql' ? ';charset=utf8' : ''),
                     $this->db_user,
                     $this->db_pass
                 );
-            } else if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
-                $this->pdo = new \PDO(
-                    PSM_DB_TYPE .':host=' . $this->db_host .
-                        ';port=' . $this->db_port .
-                        ';dbname=' . $this->db_name,
-                    $this->db_user,
-                    $this->db_pass
-                );
-            }
             $this->pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
             $this->status = true;
         } catch (\PDOException $e) {
@@ -634,7 +634,7 @@ class Database
         trigger_error('SQL error: ' . $e->getMessage(), E_USER_WARNING);
     }
 
-    private function convertQueryToPgsql( $query ) {
+    private function fixQueryForDbType( $query ) {
         if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
             // Change quoting. This may break when a field value contains double quotes
             $query = str_replace( '`', '"', $query );

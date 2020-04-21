@@ -153,6 +153,7 @@ class InstallController extends AbstractController
 
             $config = array(
                 'db_host' => 'localhost',
+                'db_type' => 'mysql',
                 'db_port' => '',
                 'db_name' => '',
                 'db_user' => '',
@@ -175,6 +176,7 @@ class InstallController extends AbstractController
                 // test db connection
                 $this->db = new \psm\Service\Database(
                     $config['db_host'],
+                    $config['db_type'],
                     $config['db_user'],
                     $config['db_pass'],
                     $config['db_name'],

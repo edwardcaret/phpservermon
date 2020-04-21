@@ -21,6 +21,10 @@
 		<input type="text" id="host" name="db_host" value="{{ db_host }}" />
 	  </div>
 	  <div class="form-group">
+		<label class="col-form-label" for="host">Database type</label>
+		<input type="text" id="type" name="db_type" value="{{ db_type }}" placeholder="mysql or pgsql" />
+	  </div>
+	  <div class="form-group">
 		<label class="col-form-label" for="host">Database port</label>
 		<input type="text" id="port" name="db_port" value="{{ db_port }}" placeholder="3306 most likely, may be empty" />
 	  </div>

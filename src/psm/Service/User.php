@@ -53,6 +53,13 @@ class User
      */
     protected $db_connection = null;
 
+
+    /**
+     * Database service
+     * @var \psm\Service\Database $db
+     */
+    protected $db;
+
     /**
      * Local cache of user data
      * @var array $user_data
@@ -91,6 +98,7 @@ class User
      */
     public function __construct(Database $db, SessionInterface $session = null)
     {
+        $this->db = $db;
         $this->db_connection = $db->pdo();
 
         if (!psm_is_cli()) {
@@ -484,9 +492,8 @@ class User
             }
 
             $this->user_preferences = array();
-
             foreach (
-                $this->db_connection->query('SELECT `key`,`value` FROM `' .
+                $this->db->query('SELECT `key`,`value` FROM `' .
                 PSM_DB_PREFIX . 'users_preferences` WHERE `user_id` = ' . $this->user_id) as $row
             ) {
                 $this->user_preferences[$row['key']] = $row['value'];
