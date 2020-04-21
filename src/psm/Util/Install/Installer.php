@@ -313,28 +313,28 @@ class Installer
         if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
             // Convert all MySQL specifics to Postgresql
             array_walk( $tables, function( &$val ) { 
-                $val = str_replace( '`', '"', $val );
+                // Remove engine spec
                 $val = preg_replace( '/ENGINE\s*=\s*MyISAM\s+DEFAULT\s+CHARSET\s*=\s*utf8/i', '', $val );
+                // Change autoincrementing id to serial
                 $val = str_replace( 'int(11) unsigned NOT NULL AUTO_INCREMENT', 'serial', $val );
+                // Remove comments
                 $val = preg_replace( '/COMMENT.*,/', ',', $val );
-                $val = str_replace( ' date ', 'timestamp ', $val );
-                $val = str_replace( ' datetime ', 'timestamp ', $val );
-                $val = str_replace( 'unsigned', '', $val );
-                $val = str_replace( 'UNSIGNED', '', $val );
-                $val = str_replace( 'mediumint(1)', 'int2', $val );
-                $val = str_replace( 'tinyint(2) unsigned', 'int2', $val );
-                $val = str_replace( 'smallint(1)', 'int2', $val );
-                $val = str_replace( 'bigint(20)', 'int4', $val );
-                $val = preg_replace( '/(tiny)*int\(\s*\d+\s*\)/i', 'int4', $val );
-                $val = preg_replace( '/UNIQUE KEY .*?\(/', 'UNIQUE (', $val );
-                $val = preg_replace( '/float\(\d+,\s*\d+\)/i', 'float', $val );
+                // Convert enums to defined types
                 $val = preg_replace( '/enum\(.*?ping.*?\)/', PSM_DB_PREFIX .'serverstype', $val );
                 $val = preg_replace( '/enum\(.on.*?\)/', PSM_DB_PREFIX .'onoff', $val );
                 $val = preg_replace( '/enum\(.yes.*?\)/', PSM_DB_PREFIX .'yesno', $val );
                 $val = preg_replace( '/enum\(.ok.*?\)/', PSM_DB_PREFIX .'okbad', $val );
                 $val = preg_replace( '/enum\(.status.*?\)/', PSM_DB_PREFIX .'logtype', $val );
+                // Convert other types to a Postgresql version or syntax
+                $val = preg_replace( '/ (date|datetime) /i', ' timestamp ', $val );
+                $val = str_ireplace( 'unsigned', '', $val );
+                $val = preg_replace( '/mediumint\(\d\)|tinyint\(\d\)|smallint\(\d\)/i', 'int2', $val );
+                $val = preg_replace( '/bigint\(\d+\)|(tiny)*int\(\s*\d+\s*\)/i', 'int4', $val );
+                $val = preg_replace( '/UNIQUE KEY .*?\(/', 'UNIQUE (', $val );
+                $val = preg_replace( '/float\(\d+,\s*\d+\)/i', 'float', $val );
                 $val = preg_replace( '/,\s*KEY.*?\)/', '', $val );
             } );
+            // Add types to replace enum column type definition
             $tables = array_merge( [
                 PSM_DB_PREFIX . 'serverstype' => "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '" . PSM_DB_PREFIX ."serverstype') THEN CREATE TYPE " . PSM_DB_PREFIX . "serverstype AS ENUM('service','website'); END IF; END $$;",
                 PSM_DB_PREFIX . 'onoff' => "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '" . PSM_DB_PREFIX ."onoff') THEN CREATE TYPE " . PSM_DB_PREFIX . "onoff AS ENUM('on','off'); END IF; END $$;",
