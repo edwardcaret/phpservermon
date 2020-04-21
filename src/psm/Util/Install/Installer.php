@@ -310,8 +310,8 @@ class Installer
             ) ENGINE=MyISAM  DEFAULT CHARSET=utf8;",
         );
 
-        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
-            // Convert all MySQL specifics to Postgresql
+        if ($this->db->getDbType() == 'pgsql') {
+            // Convert all MySQL specifics to Postgresql. It's not pretty, but right now it is easier than mirroring the entire SQL
             array_walk( $tables, function( &$val ) { 
                 // Remove engine spec
                 $val = preg_replace( '/ENGINE\s*=\s*MyISAM\s+DEFAULT\s+CHARSET\s*=\s*utf8/i', '', $val );
@@ -336,17 +336,37 @@ class Installer
             } );
             // Add types to replace enum column type definition
             $tables = array_merge( [
-                PSM_DB_PREFIX . 'serverstype' => "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '" . PSM_DB_PREFIX ."serverstype') THEN CREATE TYPE " . PSM_DB_PREFIX . "serverstype AS ENUM('service','website'); END IF; END $$;",
-                PSM_DB_PREFIX . 'onoff' => "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '" . PSM_DB_PREFIX ."onoff') THEN CREATE TYPE " . PSM_DB_PREFIX . "onoff AS ENUM('on','off'); END IF; END $$;",
-                PSM_DB_PREFIX . 'yesno' => "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '" . PSM_DB_PREFIX ."yesno') THEN CREATE TYPE " . PSM_DB_PREFIX . "yesno AS ENUM('yes','no'); END IF; END $$;",
-                PSM_DB_PREFIX . 'okbad' => "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '" . PSM_DB_PREFIX ."okbad') THEN CREATE TYPE " . PSM_DB_PREFIX . "okbad AS ENUM('ok','bad'); END IF; END $$;",
-                PSM_DB_PREFIX . 'logtype' => "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '" . PSM_DB_PREFIX ."logtype') THEN CREATE TYPE " . PSM_DB_PREFIX . "logtype AS ENUM('status','email','sms','pushover','telegram', 'jabber'); END IF; END $$;"
+                PSM_DB_PREFIX . 'serverstype' => "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '" . PSM_DB_PREFIX ."serverstype')
+                                                              THEN
+                                                                CREATE TYPE " . PSM_DB_PREFIX . "serverstype AS ENUM('service','website');
+                                                              END IF;
+                                                        END $$;",
+                PSM_DB_PREFIX . 'onoff' => "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '" . PSM_DB_PREFIX ."onoff') 
+                                                              THEN 
+                                                                CREATE TYPE " . PSM_DB_PREFIX . "onoff AS ENUM('on','off');
+                                                              END IF;
+                                                        END $$;",
+                PSM_DB_PREFIX . 'yesno' => "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '" . PSM_DB_PREFIX ."yesno') 
+                                                              THEN 
+                                                                CREATE TYPE " . PSM_DB_PREFIX . "yesno AS ENUM('yes','no');
+                                                              END IF;
+                                                        END $$;",
+                PSM_DB_PREFIX . 'okbad' => "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '" . PSM_DB_PREFIX ."okbad') 
+                                                              THEN 
+                                                                CREATE TYPE " . PSM_DB_PREFIX . "okbad AS ENUM('ok','bad');
+                                                              END IF;
+                                                        END $$;",
+                PSM_DB_PREFIX . 'logtype' => "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '" . PSM_DB_PREFIX ."logtype') 
+                                                              THEN 
+                                                                CREATE TYPE " . PSM_DB_PREFIX . "logtype AS ENUM('status','email','sms','pushover','telegram', 'jabber');
+                                                              END IF;
+                                                        END $$;"
                 ], $tables
             );
         }
         foreach ($tables as $name => $sql) {
             $exists_sql = '';
-            if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+            if ($this->db->getDbType() == 'pgsql') {
                 $exists_sql = "SELECT 1 WHERE EXISTS( SELECT * FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '{$name}')";
             } else {
                 $exists_sql = "SHOW TABLES LIKE '{$name}'";

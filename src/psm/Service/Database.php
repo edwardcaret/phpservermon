@@ -211,7 +211,7 @@ class Database
     {
         // build query
         $query_parts = array();
-        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+        if ($this->getDbType() == 'pgsql') {
             $query_parts[] = 'SELECT';
         } else {
             $query_parts[] = 'SELECT SQL_CALC_FOUND_ROWS';
@@ -219,7 +219,7 @@ class Database
 
         // Fields
         if ($fields !== null && !empty($fields)) {
-            if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+            if ($this->getDbType() == 'pgsql') {
                 $query_parts[] = '"' . implode('","', $fields) . '"';
             } else {
                 $query_parts[] = "`" . implode('`,`', $fields) . "`";
@@ -355,7 +355,7 @@ class Database
         $fields = array_keys($data[0]);
         $query .= "(`" . implode('`,`', $fields) . "`) VALUES ";
 
-        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+        if ($this->getDbType() == 'pgsql') {
             $query = str_replace( '`', '"', $query );
         }
 
@@ -399,7 +399,7 @@ class Database
         $table = $this->quote($table);
         $db = $this->quote($this->getDbName());
 
-        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+        if ($this->getDbType() == 'pgsql') {
             $if_exists = "SELECT 1 as cnt
                            WHERE EXISTS(
                                         SELECT *
@@ -588,7 +588,7 @@ class Database
      */
     protected function connect()
     {
-        // Initizale connection
+        // Initialize connection
         try {
                 $this->pdo = new \PDO(
                     $this->db_type .
@@ -635,7 +635,7 @@ class Database
     }
 
     private function fixQueryForDbType( $query ) {
-        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+        if ($this->getDbType() == 'pgsql') {
             // Change quoting. This may break when a field value contains double quotes
             $query = str_replace( '`', '"', $query );
             // Change mysql limit/offset combo to standard sql offset+limit syntax
