@@ -140,7 +140,7 @@ class Installer
                 ('smtp.gmail.com', 465, 'Gmail SMTP', 'service', '',
                 'yes', 'bad','on', '0.0000000', 'yes', 'yes', 'yes', 'yes', 'yes', 'yes')";
         $queries[] = "INSERT INTO `" . PSM_DB_PREFIX . "users_servers` (`user_id`,`server_id`) VALUES (1, 1), (1, 2);";
-        $queries[] = "INSERT INTO `" . PSM_DB_PREFIX . "config` (`key`, `value`) VALUE
+        $queries[] = "INSERT INTO `" . PSM_DB_PREFIX . "config` (`key`, `value`) VALUES
 					('language', 'en_US'),
 					('proxy', '0'),
 					('proxy_url', ''),
@@ -188,12 +188,6 @@ class Installer
 					('cron_running_time', '0'), 
 					('cron_off_running', '0'),
 					('cron_off_running_time', '0');";
-        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
-            array_walk( $queries, function( &$val ) { 
-                $val = str_replace( '`', '"', $val );
-                $val = preg_replace( '/ VALUE\s/', ' VALUES', $val );
-            } );
-        }
         $this->execSQL($queries);
     }
 
@@ -204,7 +198,7 @@ class Installer
     {
         $tables = array(
 
-# config table id is to fix a lastInsertId issue with php5.6+ and postgresql, see https://github.com/php/php-src/pull/2014
+            # config table id is to fix a lastInsertId issue with PHP5.6+ and Postgresql, see https://github.com/php/php-src/pull/2014
             PSM_DB_PREFIX . 'config' => "CREATE TABLE `" . PSM_DB_PREFIX . "config` (
                                 `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
 				`key` varchar(255) NOT NULL,
@@ -317,6 +311,7 @@ class Installer
         );
 
         if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+            // Convert all MySQL specifics to Postgresql
             array_walk( $tables, function( &$val ) { 
                 $val = str_replace( '`', '"', $val );
                 $val = preg_replace( '/ENGINE\s*=\s*MyISAM\s+DEFAULT\s+CHARSET\s*=\s*utf8/i', '', $val );
@@ -341,11 +336,11 @@ class Installer
                 $val = preg_replace( '/,\s*KEY.*?\)/', '', $val );
             } );
             $tables = array_merge( [
-                PSM_DB_PREFIX . 'serverstype' => "CREATE TYPE " . PSM_DB_PREFIX . "serverstype AS ENUM('service','website');",
-                PSM_DB_PREFIX . 'onoff' => "CREATE TYPE " . PSM_DB_PREFIX . "onoff AS ENUM('on','off');",
-                PSM_DB_PREFIX . 'yesno' => "CREATE TYPE " . PSM_DB_PREFIX . "yesno AS ENUM('yes','no');",
-                PSM_DB_PREFIX . 'okbad' => "CREATE TYPE " . PSM_DB_PREFIX . "okbad AS ENUM('ok','bad');",
-                PSM_DB_PREFIX . 'logtype' => "CREATE TYPE " . PSM_DB_PREFIX . "logtype AS ENUM('status','email','sms','pushover','telegram', 'jabber');"
+                PSM_DB_PREFIX . 'serverstype' => "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '" . PSM_DB_PREFIX ."serverstype') THEN CREATE TYPE " . PSM_DB_PREFIX . "serverstype AS ENUM('service','website'); END IF; END $$;",
+                PSM_DB_PREFIX . 'onoff' => "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '" . PSM_DB_PREFIX ."onoff') THEN CREATE TYPE " . PSM_DB_PREFIX . "onoff AS ENUM('on','off'); END IF; END $$;",
+                PSM_DB_PREFIX . 'yesno' => "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '" . PSM_DB_PREFIX ."yesno') THEN CREATE TYPE " . PSM_DB_PREFIX . "yesno AS ENUM('yes','no'); END IF; END $$;",
+                PSM_DB_PREFIX . 'okbad' => "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '" . PSM_DB_PREFIX ."okbad') THEN CREATE TYPE " . PSM_DB_PREFIX . "okbad AS ENUM('ok','bad'); END IF; END $$;",
+                PSM_DB_PREFIX . 'logtype' => "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '" . PSM_DB_PREFIX ."logtype') THEN CREATE TYPE " . PSM_DB_PREFIX . "logtype AS ENUM('status','email','sms','pushover','telegram', 'jabber'); END IF; END $$;"
                 ], $tables
             );
         }

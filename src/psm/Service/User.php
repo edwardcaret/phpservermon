@@ -486,7 +486,7 @@ class User
             $this->user_preferences = array();
 
             foreach (
-                $this->db_connection->query( 'SELECT `key`,`value` FROM `' .
+                $this->db_connection->query('SELECT `key`,`value` FROM `' .
                 PSM_DB_PREFIX . 'users_preferences` WHERE `user_id` = ' . $this->user_id) as $row
             ) {
                 $this->user_preferences[$row['key']] = $row['value'];

@@ -81,7 +81,7 @@ class UptimeArchiver implements ArchiverInterface
 
         $sql_where_server = $this->createSQLWhereServer($server_id);
 
-        $records = $this->db->execute( 
+        $records = $this->db->execute(
             "SELECT `server_id`,`date`,`status`,`latency`
 				FROM `" . PSM_DB_PREFIX . "servers_uptime`
 				WHERE {$sql_where_server} `date` < :latest_date",
