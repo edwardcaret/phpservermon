@@ -75,10 +75,6 @@ class UpdateManager implements ContainerAwareInterface
 				{$sql_join}
 				WHERE `active`='yes' " . ($status !== null ? ' AND `status` = \'' . $status . '\'' : '');
 
-        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
-            $sql = str_replace( '`', '"', $sql );
-        }
-
         $servers = $this->container->get('db')->query($sql);
 
         $updater = new Updater\StatusUpdater($this->container->get('db'));

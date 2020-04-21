@@ -81,15 +81,12 @@ class UptimeArchiver implements ArchiverInterface
 
         $sql_where_server = $this->createSQLWhereServer($server_id);
 
-        $sql =
+        $records = $this->db->execute( 
             "SELECT `server_id`,`date`,`status`,`latency`
 				FROM `" . PSM_DB_PREFIX . "servers_uptime`
-				WHERE {$sql_where_server} `date` < :latest_date"
-        ;
-        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
-            $sql = str_replace( '`', '"', $sql );
-        }
-        $records = $this->db->execute( $sql, array('latest_date' => $latest_date_str) );
+				WHERE {$sql_where_server} `date` < :latest_date",
+            array('latest_date' => $latest_date_str)
+        );
 
         if (!empty($records)) {
             // first group all records by day and server_id
@@ -115,14 +112,8 @@ class UptimeArchiver implements ArchiverInterface
             $this->db->insertMultiple(PSM_DB_PREFIX . 'servers_history', $histories);
 
             // now remove all records from the uptime table
-            $sql =
-                "DELETE FROM `" . PSM_DB_PREFIX . "servers_uptime` WHERE {$sql_where_server} `date` < :latest_date"
-            ;
-            if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
-                $sql = str_replace( '`', '"', $sql );
-            }
             $this->db->execute(
-                $sql,
+                "DELETE FROM `" . PSM_DB_PREFIX . "servers_uptime` WHERE {$sql_where_server} `date` < :latest_date",
                 array('latest_date' => $latest_date_str),
                 false
             );
@@ -138,14 +129,8 @@ class UptimeArchiver implements ArchiverInterface
     public function cleanup(\DateTime $retention_date, $server_id = null)
     {
         $sql_where_server = $this->createSQLWhereServer($server_id);
-        $sql =
-            "DELETE FROM `" . PSM_DB_PREFIX . "servers_history` WHERE {$sql_where_server} `date` < :latest_date"
-        ;
-        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
-            $sql = str_replace( '`', '"', $sql );
-        }
         $this->db->execute(
-            $sql,
+            "DELETE FROM `" . PSM_DB_PREFIX . "servers_history` WHERE {$sql_where_server} `date` < :latest_date",
             array('latest_date' => $retention_date->format('Y-m-d 00:00:00')),
             false
         );
@@ -191,9 +176,6 @@ class UptimeArchiver implements ArchiverInterface
                 // this is obviously not the cleanest way to implement this when using paramter binding.. sorry.
                 ? ' `server_id` = ' . intval($server_id) . ' AND '
                 : '';
-        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
-            $sql_where_server = str_replace( '`', '"', $sql_where_server );
-        }
 
         return $sql_where_server;
     }

@@ -112,6 +112,8 @@ class Database
      */
     public function query($query, $fetch = true)
     {
+        $query = $this->convertQueryToPgsql( $query );
+
         // Execute query and process results
         try {
             $this->last = $this->pdo()->query($query);
@@ -149,6 +151,8 @@ class Database
      */
     public function exec($query)
     {
+        $query = $this->convertQueryToPgsql( $query );
+
         try {
             $this->last = $this->pdo()->exec($query);
         } catch (\PDOException $e) {
@@ -168,6 +172,8 @@ class Database
      */
     public function execute($query, $parameters, $fetch = true)
     {
+        $query = $this->convertQueryToPgsql( $query );
+
         try {
             $this->last = $this->pdo()->prepare($query);
             $this->last->execute($parameters);
@@ -231,11 +237,7 @@ class Database
 
         // Limit
         if ($limit != '') {
-            if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
-                $query_parts[] = preg_replace( '/LIMIT\s+(\d+),(\d+)/', 'OFFSET $1 LIMIT $2', 'LIMIT ' . $limit );
-            } else {
-                $query_parts[] = 'LIMIT ' . $limit;
-            }
+            $query_parts[] = 'LIMIT ' . $limit;
         }
 
         $query = implode(' ', $query_parts);
@@ -272,9 +274,6 @@ class Database
     public function delete($table, $where = null)
     {
         $sql = 'DELETE FROM `' . $table . '` ' . $this->buildSQLClauseWhere($table, $where);
-        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
-            $sql = str_replace( '`', '"', $sql );
-        }
 
         return $this->exec($sql);
     }
@@ -319,10 +318,6 @@ class Database
                     $query .= "`{$field}`={$value}, ";
                 }
                 $query = substr($query, 0, -2) . ' ' . $this->buildSQLClauseWhere($table, $where);
-        }
-
-        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
-            $query = str_replace( '`', '"', $query );
         }
 
         if ($exec) {
@@ -401,7 +396,13 @@ class Database
         $db = $this->quote($this->getDbName());
 
         if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
-            $if_exists = "SELECT 1 as cnt WHERE EXISTS( SELECT * FROM information_schema.tables WHERE table_catalog = {$db} AND table_name = {$table})";
+            $if_exists = "SELECT 1 as cnt
+                           WHERE EXISTS(
+                                        SELECT *
+                                          FROM information_schema.tables
+                                         WHERE table_catalog = {$db} AND table_name = {$table}
+                                       )
+                    ";
         } else {
             $if_exists = "SELECT COUNT(*) AS `cnt`
                             FROM `information_schema`.`tables`
@@ -486,9 +487,6 @@ class Database
                     $query .= ' ' . $where;
                 }
             }
-        }
-        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
-            $query = str_replace( '`', '"', $query );
         }
         return $query;
     }
@@ -615,7 +613,6 @@ class Database
      */
     protected function onConnectFailure(\PDOException $e)
     {
-        error_log("Database ". PSM_DB_TYPE ." connection issue : ". $e->getTraceAsString() );
         trigger_error('MySQL connection failed: ' . $e->getMessage(), E_USER_WARNING);
         return false;
     }
@@ -635,5 +632,15 @@ class Database
     protected function error(\PDOException $e)
     {
         trigger_error('SQL error: ' . $e->getMessage(), E_USER_WARNING);
+    }
+
+    private function convertQueryToPgsql( $query ) {
+        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+            // Change quoting. This may break when a field value contains double quotes
+            $query = str_replace( '`', '"', $query );
+            // Change mysql limit/offset combo to standard sql offset+limit syntax
+            $query = preg_replace( '/LIMIT\s+(\d+),(\d+)/', 'OFFSET $1 LIMIT $2', $query );
+        }
+        return $query;
     }
 }
