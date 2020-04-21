@@ -207,10 +207,16 @@ class HistoryGraph
             return array();
         }
 
-        $records = $this->db->execute(
+        $sql =
             "SELECT *
-				FROM `" . PSM_DB_PREFIX . "servers_$type`
-				WHERE `server_id` = :server_id AND `date` BETWEEN :start_time AND :end_time ORDER BY `date` ASC",
+                    FROM `" . PSM_DB_PREFIX . "servers_$type`
+                    WHERE `server_id` = :server_id AND `date` BETWEEN :start_time AND :end_time ORDER BY `date` ASC"
+        ;
+        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+            $sql = str_replace( '`', '"', $sql );
+        }
+        $records = $this->db->execute(
+            $sql,
             array(
                 'server_id' => $server_id,
                 'start_time' => $start_time->format('Y-m-d H:i:s'),

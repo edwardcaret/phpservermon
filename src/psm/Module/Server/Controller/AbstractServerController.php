@@ -98,6 +98,9 @@ abstract class AbstractServerController extends AbstractController
 				{$sql_join}
 				{$sql_where}
 				ORDER BY `active` ASC, `status` DESC, `label` ASC";
+        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+            $sql = str_replace( '`', '"', $sql );
+        }
         $servers = $this->db->query($sql);
 
         if ($server_id !== null && count($servers) == 1) {

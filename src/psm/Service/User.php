@@ -484,9 +484,15 @@ class User
             }
 
             $this->user_preferences = array();
+            $sql = 'SELECT `key`,`value` FROM `' .
+                PSM_DB_PREFIX . 'users_preferences` WHERE `user_id` = ' . $this->user_id;
+
+            if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+                $sql = str_replace( '`', '"', $sql );
+            }
+
             foreach (
-                $this->db_connection->query('SELECT `key`,`value` FROM `' .
-                PSM_DB_PREFIX . 'users_preferences` WHERE `user_id` = ' . $this->user_id) as $row
+                $this->db_connection->query( $sql ) as $row
             ) {
                 $this->user_preferences[$row['key']] = $row['value'];
             }
@@ -526,6 +532,9 @@ class User
                 $sql = 'UPDATE `' . PSM_DB_PREFIX . 'users_preferences` SET `key` = ?, `value` = ? WHERE `user_id` = ?';
             } else {
                 $sql = 'INSERT INTO `' . PSM_DB_PREFIX . 'users_preferences` SET `key` = ?, `value` = ?, `user_id` = ?';
+            }
+            if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+                $sql = str_replace( '`', '"', $sql );
             }
             $sth = $this->db_connection->prepare($sql);
             $sth->execute(array($key, $value, $this->user_id));

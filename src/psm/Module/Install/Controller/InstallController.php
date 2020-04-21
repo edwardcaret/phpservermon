@@ -98,9 +98,13 @@ class InstallController extends AbstractController
         } else {
             $this->addMessage('PHP cURL module found', 'success');
         }
-        if (!in_array('mysql', \PDO::getAvailableDrivers())) {
+        $psm_db_type = 'mysql';
+        if (defined('PSM_DB_TYPE')) {
+            $psm_db_type = PSM_DB_TYPE;
+        }
+        if (!in_array($psm_db_type, \PDO::getAvailableDrivers())) {
             $errors++;
-            $this->addMessage('The PDO MySQL driver needs to be installed.', 'error');
+            $this->addMessage('The PDO '. $psm_db_type .' driver needs to be installed.', 'error');
         }
         if (!ini_get('date.timezone')) {
             $this->addMessage(

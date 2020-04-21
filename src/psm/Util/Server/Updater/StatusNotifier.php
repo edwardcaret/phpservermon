@@ -618,7 +618,7 @@ class StatusNotifier
     public function getUsers($server_id)
     {
         // find all the users with this server listed
-        $users = $this->db->query('
+        $sql = '
             SELECT `u`.`user_id`, `u`.`name`,`u`.`email`, `u`.`mobile`, `u`.`pushover_key`,
                 `u`.`pushover_device`, `u`.`telegram_id`, 
                 `u`.`jabber`
@@ -627,7 +627,11 @@ class StatusNotifier
 				`us`.`user_id`=`u`.`user_id`
 				AND `us`.`server_id` = {$server_id}
 			)
-		");
+        ";
+        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+            $sql = str_replace( '`', '"', $sql );
+        }
+        $users = $this->db->query( $sql );
         return $users;
     }
 }

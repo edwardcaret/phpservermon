@@ -197,17 +197,29 @@ class Database
     {
         // build query
         $query_parts = array();
-        $query_parts[] = 'SELECT SQL_CALC_FOUND_ROWS';
+        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+            $query_parts[] = 'SELECT';
+        } else {
+            $query_parts[] = 'SELECT SQL_CALC_FOUND_ROWS';
+        }
 
         // Fields
         if ($fields !== null && !empty($fields)) {
-            $query_parts[] = "`" . implode('`,`', $fields) . "`";
+            if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+                $query_parts[] = '"' . implode('","', $fields) . '"';
+            } else {
+                $query_parts[] = "`" . implode('`,`', $fields) . "`";
+            }
         } else {
             $query_parts[] = ' * ';
         }
 
         // From
-        $query_parts[] = "FROM `{$table}`";
+        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+            $query_parts[] = sprintf('FROM "%s"', $table);
+        } else {
+            $query_parts[] = "FROM `{$table}`";
+        }
 
         // Where clause
         $query_parts[] = $this->buildSQLClauseWhere($table, $where);
@@ -219,7 +231,11 @@ class Database
 
         // Limit
         if ($limit != '') {
-            $query_parts[] = 'LIMIT ' . $limit;
+            if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+                $query_parts[] = preg_replace( '/LIMIT\s+(\d+),(\d+)/', 'OFFSET $1 LIMIT $2', 'LIMIT ' . $limit );
+            } else {
+                $query_parts[] = 'LIMIT ' . $limit;
+            }
         }
 
         $query = implode(' ', $query_parts);
@@ -256,6 +272,9 @@ class Database
     public function delete($table, $where = null)
     {
         $sql = 'DELETE FROM `' . $table . '` ' . $this->buildSQLClauseWhere($table, $where);
+        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+            $sql = str_replace( '`', '"', $sql );
+        }
 
         return $this->exec($sql);
     }
@@ -271,26 +290,40 @@ class Database
     public function save($table, array $data, $where = null)
     {
         if ($where === null) {
-            // insert mode
-            $query = "INSERT INTO ";
-            $exec = false;
+                // insert mode
+                $query = "INSERT INTO ";
+                $exec = false;
+                $query .= "`{$table}` ";
+                $fields = array_keys($data);
+                $query .= "(".implode(',', $fields).") VALUES ";
+                $fieldVals = [];
+                foreach($data as $field => $value) {
+                    if(is_null($value)) {
+                        $value = 'NULL';
+                    } else {
+                        $value = $this->quote($value);
+                    }
+                    array_push($fieldVals, $value);
+                }
+                $query .= "(". implode(',',$fieldVals) .")";
         } else {
-            $query = "UPDATE ";
-            $exec = true;
+                $query = "UPDATE ";
+                $exec = true;
+                $query .= "`{$table}` SET ";
+                foreach($data as $field => $value) {
+                    if(is_null($value)) {
+                        $value = 'NULL';
+                    } else {
+                        $value = $this->quote($value);
+                    }
+                    $query .= "`{$field}`={$value}, ";
+                }
+                $query = substr($query, 0, -2) . ' ' . $this->buildSQLClauseWhere($table, $where);
         }
 
-        $query .= "`{$table}` SET ";
-
-        foreach ($data as $field => $value) {
-            if (is_null($value)) {
-                $value = 'NULL';
-            } else {
-                $value = $this->quote($value);
-            }
-            $query .= "`{$table}`.`{$field}`={$value}, ";
+        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+            $query = str_replace( '`', '"', $query );
         }
-
-        $query = substr($query, 0, -2) . ' ' . $this->buildSQLClauseWhere($table, $where);
 
         if ($exec) {
             return $this->exec($query);
@@ -322,6 +355,10 @@ class Database
         $query = "INSERT INTO `{$table}` ";
         $fields = array_keys($data[0]);
         $query .= "(`" . implode('`,`', $fields) . "`) VALUES ";
+
+        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+            $query = str_replace( '`', '"', $query );
+        }
 
         // prepare all rows to be inserted with placeholders for vars (\?)
         $q_part = array_fill(0, count($fields), '?');
@@ -363,11 +400,15 @@ class Database
         $table = $this->quote($table);
         $db = $this->quote($this->getDbName());
 
-        $if_exists = "SELECT COUNT(*) AS `cnt`
-			FROM `information_schema`.`tables`
-			WHERE `table_schema` = {$db}
-			AND `table_name` = {$table};
-		";
+        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+            $if_exists = "SELECT 1 as cnt WHERE EXISTS( SELECT * FROM information_schema.tables WHERE table_catalog = {$db} AND table_name = {$table})";
+        } else {
+            $if_exists = "SELECT COUNT(*) AS `cnt`
+                            FROM `information_schema`.`tables`
+                            WHERE `table_schema` = {$db}
+                            AND `table_name` = {$table};
+                    ";
+        }
         $if_exists = $this->query($if_exists);
 
         if (isset($if_exists[0]['cnt']) && $if_exists[0]['cnt'] == 1) {
@@ -446,6 +487,9 @@ class Database
                 }
             }
         }
+        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+            $query = str_replace( '`', '"', $query );
+        }
         return $query;
     }
 
@@ -465,7 +509,11 @@ class Database
                 $query .= " ORDER BY ";
 
                 foreach ($order_by as $field) {
-                    $query .= "`{$field}`, ";
+                    if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+                        $query .= sprintf('"%s", ', $field);
+                    } else {
+                        $query .= "`{$field}`, ";
+                    }
                 }
                 // remove trailing ", "
                 $query = substr($query, 0, -2);
@@ -535,14 +583,24 @@ class Database
     {
         // Initizale connection
         try {
-            $this->pdo = new \PDO(
-                'mysql:host=' . $this->db_host .
-                    ';port=' . $this->db_port .
-                    ';dbname=' . $this->db_name .
-                    ';charset=utf8',
-                $this->db_user,
-                $this->db_pass
-            );
+            if (!defined('PSM_DB_TYPE') || (PSM_DB_TYPE == 'mysql')) {
+                $this->pdo = new \PDO(
+                    'mysql:host=' . $this->db_host .
+                        ';port=' . $this->db_port .
+                        ';dbname=' . $this->db_name .
+                        ';charset=utf8',
+                    $this->db_user,
+                    $this->db_pass
+                );
+            } else if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+                $this->pdo = new \PDO(
+                    PSM_DB_TYPE .':host=' . $this->db_host .
+                        ';port=' . $this->db_port .
+                        ';dbname=' . $this->db_name,
+                    $this->db_user,
+                    $this->db_pass
+                );
+            }
             $this->pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
             $this->status = true;
         } catch (\PDOException $e) {
@@ -557,6 +615,7 @@ class Database
      */
     protected function onConnectFailure(\PDOException $e)
     {
+        error_log("Database ". PSM_DB_TYPE ." connection issue : ". $e->getTraceAsString() );
         trigger_error('MySQL connection failed: ' . $e->getMessage(), E_USER_WARNING);
         return false;
     }

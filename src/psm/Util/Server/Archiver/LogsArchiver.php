@@ -65,8 +65,11 @@ class LogsArchiver implements ArchiverInterface
                 ? ' `server_id` = ' . intval($server_id) . ' AND '
                 : '';
 
-        $this->db->execute(
-            "DELETE FROM `" . PSM_DB_PREFIX . "log` WHERE {$sql_where_server} `datetime` < :latest_date",
+        $sql = "DELETE FROM `" . PSM_DB_PREFIX . "log` WHERE {$sql_where_server} `datetime` < :latest_date";
+        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+            $sql = str_replace( '`', '"', $sql );
+        }
+        $this->db->execute( $sql,
             array('latest_date' => $retention_date->format('Y-m-d 00:00:00')),
             false
         );

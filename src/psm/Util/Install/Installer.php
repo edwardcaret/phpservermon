@@ -188,6 +188,12 @@ class Installer
 					('cron_running_time', '0'), 
 					('cron_off_running', '0'),
 					('cron_off_running_time', '0');";
+        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+            array_walk( $queries, function( &$val ) { 
+                $val = str_replace( '`', '"', $val );
+                $val = preg_replace( '/ VALUE\s/', ' VALUES', $val );
+            } );
+        }
         $this->execSQL($queries);
     }
 
@@ -197,7 +203,10 @@ class Installer
     protected function installTables()
     {
         $tables = array(
+
+# config table id is to fix a lastInsertId issue with php5.6+ and postgresql, see https://github.com/php/php-src/pull/2014
             PSM_DB_PREFIX . 'config' => "CREATE TABLE `" . PSM_DB_PREFIX . "config` (
+                                `id` int(11) unsigned NOT NULL AUTO_INCREMENT,
 				`key` varchar(255) NOT NULL,
 				`value` varchar(255) NOT NULL,
 				PRIMARY KEY (`key`)
@@ -307,8 +316,48 @@ class Installer
             ) ENGINE=MyISAM  DEFAULT CHARSET=utf8;",
         );
 
+        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+            array_walk( $tables, function( &$val ) { 
+                $val = str_replace( '`', '"', $val );
+                $val = preg_replace( '/ENGINE\s*=\s*MyISAM\s+DEFAULT\s+CHARSET\s*=\s*utf8/i', '', $val );
+                $val = str_replace( 'int(11) unsigned NOT NULL AUTO_INCREMENT', 'serial', $val );
+                $val = preg_replace( '/COMMENT.*,/', ',', $val );
+                $val = str_replace( ' date ', 'timestamp ', $val );
+                $val = str_replace( ' datetime ', 'timestamp ', $val );
+                $val = str_replace( 'unsigned', '', $val );
+                $val = str_replace( 'UNSIGNED', '', $val );
+                $val = str_replace( 'mediumint(1)', 'int2', $val );
+                $val = str_replace( 'tinyint(2) unsigned', 'int2', $val );
+                $val = str_replace( 'smallint(1)', 'int2', $val );
+                $val = str_replace( 'bigint(20)', 'int4', $val );
+                $val = preg_replace( '/(tiny)*int\(\s*\d+\s*\)/i', 'int4', $val );
+                $val = preg_replace( '/UNIQUE KEY .*?\(/', 'UNIQUE (', $val );
+                $val = preg_replace( '/float\(\d+,\s*\d+\)/i', 'float', $val );
+                $val = preg_replace( '/enum\(.*?ping.*?\)/', PSM_DB_PREFIX .'serverstype', $val );
+                $val = preg_replace( '/enum\(.on.*?\)/', PSM_DB_PREFIX .'onoff', $val );
+                $val = preg_replace( '/enum\(.yes.*?\)/', PSM_DB_PREFIX .'yesno', $val );
+                $val = preg_replace( '/enum\(.ok.*?\)/', PSM_DB_PREFIX .'okbad', $val );
+                $val = preg_replace( '/enum\(.status.*?\)/', PSM_DB_PREFIX .'logtype', $val );
+                $val = preg_replace( '/,\s*KEY.*?\)/', '', $val );
+            } );
+            $tables = array_merge( [
+                PSM_DB_PREFIX . 'serverstype' => "CREATE TYPE " . PSM_DB_PREFIX . "serverstype AS ENUM('service','website');",
+                PSM_DB_PREFIX . 'onoff' => "CREATE TYPE " . PSM_DB_PREFIX . "onoff AS ENUM('on','off');",
+                PSM_DB_PREFIX . 'yesno' => "CREATE TYPE " . PSM_DB_PREFIX . "yesno AS ENUM('yes','no');",
+                PSM_DB_PREFIX . 'okbad' => "CREATE TYPE " . PSM_DB_PREFIX . "okbad AS ENUM('ok','bad');",
+                PSM_DB_PREFIX . 'logtype' => "CREATE TYPE " . PSM_DB_PREFIX . "logtype AS ENUM('status','email','sms','pushover','telegram', 'jabber');"
+                ], $tables
+            );
+        }
         foreach ($tables as $name => $sql) {
-            $if_table_exists = $this->db->query("SHOW TABLES LIKE '{$name}'");
+            $exists_sql = '';
+            if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+                $exists_sql = "SELECT 1 WHERE EXISTS( SELECT * FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '{$name}')";
+            } else {
+                $exists_sql = "SHOW TABLES LIKE '{$name}'";
+            }
+            $if_table_exists = $this->db->query( $exists_sql );
+            error_log( "Table existence check: {$name} : ". json_encode($if_table_exists) );
 
             if (!empty($if_table_exists)) {
                 $this->log('Table ' . $name . ' already exists in your database!');

@@ -165,7 +165,7 @@ class LogController extends AbstractServerController
 						AND `us`.`server_id`=`servers`.`server_id`
 						)";
         }
-        $entries = $this->db->query(
+        $sql = 
             'SELECT ' .
                 '`servers`.`label`, ' .
                 '`servers`.`ip`, ' .
@@ -181,7 +181,12 @@ class LogController extends AbstractServerController
             'WHERE `log`.`type`=\'' . $type . '\' ' .
             'ORDER BY `datetime` DESC ' .
             'LIMIT 0,20'
-        );
+        ;
+        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+            $sql = str_replace( '`', '"', $sql );
+            $sql = preg_replace( '/LIMIT (\d+),(\d+)/', 'OFFSET $1 LIMIT $2', $sql );
+        }
+        $entries = $this->db->query( $sql );
         return $entries;
     }
 
@@ -193,7 +198,7 @@ class LogController extends AbstractServerController
      */
     protected function getLogUsers($log_id)
     {
-        return $this->db->query(
+        $sql =
             "SELECT
                 u.`user_id`,
                 u.`name`
@@ -201,6 +206,10 @@ class LogController extends AbstractServerController
             LEFT JOIN `" . PSM_DB_PREFIX . "users` AS u ON lu.`user_id` = u.`user_id`
             WHERE lu.`log_id` = " . (int) $log_id . "
             ORDER BY u.`name` ASC"
-        );
+        ;
+        if (defined('PSM_DB_TYPE') && (PSM_DB_TYPE == 'pgsql')) {
+            $sql = str_replace( '`', '"', $sql );
+        }
+        return $this->db->query( $sql );
     }
 }

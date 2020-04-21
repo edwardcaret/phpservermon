@@ -59,7 +59,7 @@ class UserController extends AbstractController
             null,
             array('server_id', 'label'),
             '',
-            "ORDER BY `label` ASC"
+            "ORDER BY label ASC"
         );
         // change the indexes to reflect their server ids
         foreach ($servers as $server) {
